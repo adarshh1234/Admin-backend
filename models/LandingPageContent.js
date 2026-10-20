@@ -30,7 +30,7 @@ const LandingPageContentSchema = new mongoose.Schema(
   }
 );
 
-export const LandingPageContent = mongoose.model('LandingPageContent', LandingPageContentSchema);
+export const LandingPageContent = mongoose.models.LandingPageContent || mongoose.model('LandingPageContent', LandingPageContentSchema);
 
 export const LandingPageContentModel = {
   async getPublished() {
@@ -123,27 +123,22 @@ export const LandingPageContentModel = {
 
   async resetToDefaults() {
     let doc = await LandingPageContent.findOne({ key: 'main_cms_content' });
-    const initialData = {
-      live: { ...defaultLandingPageContent, status: 'published' },
-      draft: { ...defaultLandingPageContent, status: 'draft' },
-      history: [],
-    };
+    const defaultDraft = { ...defaultLandingPageContent, status: 'draft', updatedAt: new Date().toISOString() };
 
     if (!doc) {
       doc = await LandingPageContent.create({
         key: 'main_cms_content',
-        ...initialData,
+        live: { ...defaultLandingPageContent, status: 'published' },
+        draft: defaultDraft,
+        history: [],
       });
     } else {
-      doc.live = initialData.live;
-      doc.draft = initialData.draft;
-      doc.history = [];
-      doc.markModified('live');
+      // Safely reset only the editable draft state, preserving published live content and history
+      doc.draft = defaultDraft;
       doc.markModified('draft');
-      doc.markModified('history');
       await doc.save();
     }
 
-    return doc.live;
+    return doc.draft;
   },
 };

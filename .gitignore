@@ -1,4 +1,20 @@
+
+# Installed dependencies
 node_modules/
+
+# Environment secrets
 .env
+.env.*
+!.env.example
+
+# Local database backups and exports
+backups/
+
+# Logs
 *.log
+
+# OS files
 .DS_Store
+
+# Local Git repositories
+repos/

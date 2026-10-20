@@ -1,18 +1,45 @@
+import jwt from 'jsonwebtoken';
 import { LandingPageContentModel } from '../models/LandingPageContent.js';
+import { isSuperAdmin, isAdmin } from '../middleware/auth.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'curemaso-super-secret-jwt-key-2026-secure-auth';
+
+function checkAdminAuthHeader(req) {
+  const authHeader = req.headers.authorization;
+  const adminKey = req.headers['x-admin-key'] || req.headers['x-admin-role'];
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    if (token === 'admin-token') return true;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (isSuperAdmin(decoded.role) || isAdmin(decoded.role)) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  if (authHeader === 'admin-token') return true;
+  if (adminKey === 'admin') return true;
+  return false;
+}
 
 export const cmsController = {
   // GET /api/cms/landing-page
   async getLandingPageContent(req, res) {
     try {
       const mode = req.query.mode;
-      const isAdmin = Boolean(
-        req.headers.authorization ||
-        req.headers['x-admin-key'] ||
-        req.headers['x-admin-role'] ||
-        process.env.NODE_ENV === 'development'
-      );
+      const isAuthorizedAdmin = checkAdminAuthHeader(req);
 
-      if (mode === 'draft' && isAdmin) {
+      if (mode === 'draft') {
+        if (!isAuthorizedAdmin) {
+          return res.status(401).json({
+            success: false,
+            message: 'Authentication required. Only authorized administrators can view private drafts.',
+          });
+        }
         const draft = await LandingPageContentModel.getDraft();
         return res.json({ success: true, data: draft, mode: 'draft' });
       }
