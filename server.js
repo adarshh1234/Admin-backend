@@ -19,6 +19,7 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import platformRoutes from './routes/platformRoutes.js';
 import misRoutes from './routes/misRoutes.js';
+import creditRoutes from './routes/creditRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,9 @@ app.use('/api/auth', authRoutes);
 
 // User Management Endpoints
 app.use('/api/users', userRoutes);
+
+// Credit Management Endpoints (Module 43)
+app.use('/api/credits', creditRoutes);
 
 // Platform Modules (Candidates, Startups, Companies, Institutions)
 app.use('/api/platform', platformRoutes);
