@@ -812,6 +812,10 @@ export const creditController = {
         institutionPlans: persisted?.institutionPlans?.length ? persisted.institutionPlans : BASELINE_PRICING.institutionPlans,
         status: persisted?.status || 'published',
         draftData: persisted?.draftData || null,
+        paymentsCreditsEnabled: persisted?.paymentsCreditsEnabled !== undefined ? persisted.paymentsCreditsEnabled : true,
+        paymentsCreditsDisabledReason: persisted?.paymentsCreditsDisabledReason || '',
+        paymentsCreditsDisabledAt: persisted?.paymentsCreditsDisabledAt || null,
+        paymentsCreditsDisabledBy: persisted?.paymentsCreditsDisabledBy || '',
         auditLog: persisted?.auditLog || [],
         lastUpdatedBy: persisted?.lastUpdatedBy || 'System Baseline',
         lastUpdatedByRole: persisted?.lastUpdatedByRole || 'System',
@@ -1341,6 +1345,97 @@ export const creditController = {
       return res.status(500).json({
         success: false,
         message: 'Failed to update pricing configuration',
+        error: err.message,
+      });
+    }
+  },
+
+  /**
+   * 4f. Global Payment & Credits Kill Switch (Super Admin Only)
+   * POST /api/credits/pricing/toggle-payments
+   */
+  async togglePaymentsCredits(req, res) {
+    try {
+      const admin = req.user;
+      const { enabled, reason } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'The "enabled" field is required and must be a boolean (true or false).',
+        });
+      }
+
+      let config = await CreditPricingConfig.findOne({ key: 'default' });
+      if (!config) {
+        config = new CreditPricingConfig({
+          key: 'default',
+          creditValueInr: BASELINE_PRICING.creditValueInr,
+          initialPromotionalCredits: BASELINE_PRICING.initialPromotionalCredits,
+          referralRewardCredits: BASELINE_PRICING.referralRewardCredits,
+          candidatePlans: BASELINE_PRICING.candidatePlans,
+          companyPlans: BASELINE_PRICING.companyPlans,
+          startupPlans: BASELINE_PRICING.startupPlans,
+          institutionPlans: BASELINE_PRICING.institutionPlans,
+          subscriptionPlans: BASELINE_PRICING.subscriptionPlans,
+          auditLog: [],
+        });
+      }
+
+      const previousValue = config.paymentsCreditsEnabled !== false;
+      const newValue = enabled;
+      const adminName = admin.displayName || admin.username || 'Super Admin';
+      const adminRole = admin.role || 'Super Admin';
+      const adminId = admin.id || admin._id || 'SA-001';
+      const changeReason = (reason || '').trim() || (newValue ? 'Payments & credits re-enabled platform-wide' : 'Payments & credits disabled platform-wide');
+
+      config.paymentsCreditsEnabled = newValue;
+      if (!newValue) {
+        config.paymentsCreditsDisabledReason = changeReason;
+        config.paymentsCreditsDisabledAt = new Date();
+        config.paymentsCreditsDisabledBy = adminName;
+      } else {
+        config.paymentsCreditsDisabledReason = '';
+        config.paymentsCreditsDisabledAt = null;
+        config.paymentsCreditsDisabledBy = '';
+      }
+
+      // Record in authoritative audit trail
+      config.auditLog.push({
+        adminId: String(adminId),
+        adminName,
+        adminRole,
+        itemKey: 'paymentsCreditsEnabled',
+        itemName: 'Global Payments & Credits Kill Switch',
+        field: 'paymentsCreditsEnabled',
+        previousValue,
+        newValue,
+        reason: changeReason,
+        timestamp: new Date(),
+      });
+
+      config.lastUpdatedBy = adminName;
+      config.lastUpdatedByRole = adminRole;
+      await config.save();
+
+      return res.json({
+        success: true,
+        message: newValue
+          ? 'Payments and credits have been successfully enabled platform-wide.'
+          : 'Payments and credits have been temporarily disabled platform-wide.',
+        data: {
+          paymentsCreditsEnabled: config.paymentsCreditsEnabled,
+          paymentsCreditsDisabledReason: config.paymentsCreditsDisabledReason,
+          paymentsCreditsDisabledAt: config.paymentsCreditsDisabledAt,
+          paymentsCreditsDisabledBy: config.paymentsCreditsDisabledBy,
+          updatedAt: config.updatedAt,
+        },
+      });
+    } catch (err) {
+      console.error('Error toggling payments & credits:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update global payments & credits setting',
         error: err.message,
       });
     }

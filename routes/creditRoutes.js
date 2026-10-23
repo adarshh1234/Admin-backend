@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { creditController } from '../controllers/creditController.js';
-import { requireAdminOrSuperAdmin } from '../middleware/auth.js';
+import { requireAdminOrSuperAdmin, requireSuperAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -23,6 +23,9 @@ router.post('/pricing/save-draft', creditController.savePricingDraft);
 router.post('/pricing/publish', creditController.publishPricing);
 router.post('/pricing/reset', creditController.resetPricing);
 router.put('/pricing', creditController.updatePricingConfig);
+
+// Global Payment & Credits Kill Switch (Super Admin Only)
+router.post('/pricing/toggle-payments', requireSuperAdmin, creditController.togglePaymentsCredits);
 
 // Global Transactions Ledger
 router.get('/transactions', creditController.getTransactions);
